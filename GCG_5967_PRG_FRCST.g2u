@@ -1,0 +1,245 @@
+Program.Sub.ScreenSU.Start
+Gui.FmPurge..Create
+Gui.FmPurge..Caption("Select Customer Forecast Data to Purge")
+Gui.FmPurge..Size(8985,6975)
+Gui.FmPurge..MinX(0)
+Gui.FmPurge..MinY(0)
+Gui.FmPurge..Position(0,0)
+Gui.FmPurge..BackColor(-2147483633)
+Gui.FmPurge..MousePointer(0)
+Gui.FmPurge..Event(UnLoad,FmPurge_UnLoad)
+Gui.FmPurge..Sizeable(False)
+Gui.FmPurge.cmdPurge.Create(Button)
+Gui.FmPurge.cmdPurge.Size(1920,450)
+Gui.FmPurge.cmdPurge.Position(6960,6030)
+Gui.FmPurge.cmdPurge.Caption("Purge Selected")
+Gui.FmPurge.cmdPurge.FontStyle(True,False,False,False,False)
+Gui.FmPurge.cmdPurge.Event(Click,cmdPurge_Click)
+Gui.FmPurge.GsGcCust.Create(GsGridControl)
+Gui.FmPurge.GsGcCust.Size(8865,5895)
+Gui.FmPurge.GsGcCust.Position(15,30)
+Gui.FmPurge.GsGcCust.Event(RowCellClick,GsGcCust_RowCellClick)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.Try
+V.Local.sCust.Declare
+'TJS April 2020
+'Customer: Lakeview Industries
+'BUSINESS CASE:The company needs a way to purge forecast data based on a specific customer. 
+'The current menu item purges everything regardless of customer.
+'SOLUTION:Create a GAB front end that allows the user to select from a list of customer ID?s 
+'that can be found in the Forecast Table.  Make sure the list displays both customer ID and Name.
+'Use the related information in the Forecast table to purge records from the other forecast table.  
+'Once the other tables are purged, purged the forecast table for that customer.
+'Also the program is going to remove the forecasted work orders generated from the forecast
+
+F.Intrinsic.Control.If(V.DataTable.dtCust.Exists)
+	F.Data.DataTable.Close("dtCust")
+F.Intrinsic.Control.EndIf
+
+'Creating initial customer selection form
+F.ODBC.Connection!conts.OpenCompanyConnection
+
+F.Data.Datatable.CreateFromSQL("dtCust","conts","Select distinct RTRIM(A.CUSTOMER) as Customer,RTRIM(B.NAME_CUSTOMER) as "Customer Name" from V_FORECAST_HEADER A left join V_CUSTOMER_MASTER B on RTRIM(B.CUSTOMER) = RTRIM(A.CUSTOMER)",True)
+
+F.ODBC.Connection!conts.Close
+
+F.Data.DataTable.AddColumn("dtCust","Purge?","Boolean",False)
+
+Gui.FmPurge.GsGcCust.SuspendLayout
+
+Gui.FmPurge.GsGcCust.AddGridviewFromDatatable("gvCust","dtCust")
+Gui.FmPurge.GsGcCust.MainView("gvCust")
+
+Gui.FmPurge.GsGcCust.SetGridviewProperty("gvCust","ReadOnly",True)
+Gui.FmPurge.GsGcCust.SetGridviewProperty("gvCust","Editable",False)
+
+Gui.FmPurge.GsGcCust.SetColumnProperty("gvCust","Customer","HeaderFontBold",True)
+Gui.FmPurge.GsGcCust.SetColumnProperty("gvCust","Customer Name","HeaderFontBold",True)
+Gui.FmPurge.GsGcCust.SetColumnProperty("gvCust","Purge?","HeaderFontBold",True)
+
+Gui.FmPurge.GsGcCust.SetColumnProperty("gvCust","Customer","HeaderHAlignment","Center")
+Gui.FmPurge.GsGcCust.SetColumnProperty("gvCust","Customer Name","HeaderHAlignment","Center")
+Gui.FmPurge.GsGcCust.SetColumnProperty("gvCust","Purge?","HeaderHAlignment","Center")
+
+Gui.FmPurge.GsGcCust.SetColumnProperty("gvCust","Customer","HeaderBackColor","Silver")
+Gui.FmPurge.GsGcCust.SetColumnProperty("gvCust","Customer Name","HeaderBackColor","Silver")
+Gui.FmPurge.GsGcCust.SetColumnProperty("gvCust","Purge?","HeaderBackColor","Silver")
+
+F.Intrinsic.Control.CallSub(SetIcon)
+
+Gui.FmPurge.GsGcCust.ResumeLayout
+
+Gui.FmPurge..Show
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(Error,"SubRoutine",V.Ambient.CurrentSubroutine,"eNumber",V.Ambient.ErrorNumber,"eDescription",V.Ambient.ErrorDescription)
+F.Intrinsic.Control.EndTry
+Program.Sub.Main.End
+
+Program.Sub.GsGcCust_RowCellClick.Start
+F.Intrinsic.Control.Try
+
+'Toggles checkboxes based on user clicks
+F.Intrinsic.Control.If(V.Args.COLUMN,=,"Purge?")
+	F.Intrinsic.Control.If(V.Args.CELLVALUE,=,False)
+		Gui.FmPurge.GsGcCust.SetCellValueByColumnName("gvCust","Purge?",V.Args.ROWINDEX,"True")
+	F.Intrinsic.Control.Else
+		Gui.FmPurge.GsGcCust.SetCellValueByColumnName("gvCust","Purge?",V.Args.ROWINDEX,"False")
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(Error,"SubRoutine",V.Ambient.CurrentSubroutine,"eNumber",V.Ambient.ErrorNumber,"eDescription",V.Ambient.ErrorDescription)
+F.Intrinsic.Control.EndTry
+Program.Sub.GsGcCust_RowCellClick.End
+
+Program.Sub.cmdPurge_Click.Start
+F.Intrinsic.Control.Try
+V.Local.sMSG.Declare
+V.Local.iRet.Declare
+
+F.Intrinsic.String.Build("This action is irreversable.{0}{0}Are you sure you wish to continue?",V.Ambient.NewLine,V.Local.sMSG)
+
+F.Intrinsic.UI.Msgbox(V.Local.sMSG,"WARNING!",4,V.Local.iRet)
+
+F.Intrinsic.Control.If(V.Local.iRet,=,6)
+	F.Intrinsic.Control.CallSub(TheGreatPurge)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(Error,"SubRoutine",V.Ambient.CurrentSubroutine,"eNumber",V.Ambient.ErrorNumber,"eDescription",V.Ambient.ErrorDescription)
+F.Intrinsic.Control.EndTry
+Program.Sub.cmdPurge_Click.End
+
+Program.Sub.TheGreatPurge.Start
+F.Intrinsic.Control.Try
+V.Local.iCNT.Declare
+V.Local.iCNT2.Declare
+V.Local.sSQL.Declare
+V.Local.sJob.Declare
+V.Local.sSuff.Declare
+V.Local.sCust.Declare
+V.Local.sID.Declare
+
+F.Data.DataView.Create("dtCust","dvPurge",22,"[Purge?] = True","")
+
+F.Intrinsic.Control.If(V.DataView.dtCust!dvPurge.RowCount,=,0)
+	F.Intrinsic.UI.Msgbox("Please select at least one customer","Nothing to purge")
+	F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.EndIf
+
+F.ODBC.Connection!conts.OpenCompanyConnection
+
+F.Intrinsic.Control.For(V.Local.iCNT,0,V.DataView.dtCust!dvPurge.RowCount--,1)
+	V.Local.sCust.Set(V.DataView.dtCust!dvPurge(V.Local.iCNT).Customer!FieldValTrim)
+	F.Intrinsic.String.Build("Select RTRIM(JOB) as SCHED_JOB, RTRIM(SUFFIX) as SCHED_SUF from FORECAST_HEADER where RTRIM(CUSTOMER) = '{0}'",V.Local.sCust.Trim,V.Local.sSQL)
+	F.Intrinsic.Control.If(V.DataTable.dtJobs.Exists)
+		F.Data.DataTable.Close("dtJobs")
+	F.Intrinsic.Control.EndIf
+	'Delete FORECAST_OPS and APSV3 tables by each job
+	F.Data.DataTable.CreateFromSQL("dtJobs","conts",V.Local.sSQL)
+		F.Intrinsic.Control.For(V.Local.iCNT2,0,V.DataTable.dtJobs.RowCount--,1)
+			V.Local.sJob.Set(V.DataTable.dtJobs(V.Local.iCNT2).SCHED_JOB!FieldValTrim)
+			V.Local.sSuff.Set(V.DataTable.dtJobs(V.Local.iCNT2).SCHED_SUF!FieldValTrim)
+			
+			F.Intrinsic.String.Build("Delete FORECAST_OPS where RTRIM(JOB) = '{0}' and RTRIM(SUFFIX) = '{1}'",V.Local.sJob.Trim,V.Local.sSuff.Trim,V.Local.sSQL)
+			F.ODBC.Connection!conts.Execute(V.Local.sSQL)
+			
+			F.Intrinsic.String.Build("Delete APSV3_JBMASTER where RTRIM(JOB) = '{0}' and RTRIM(SFX) = '{1}'",V.Local.sJob.Trim,V.Local.sSuff.Trim,V.Local.sSQL)
+			F.ODBC.Connection!conts.Execute(V.Local.sSQL)
+			
+			F.Intrinsic.String.Build("Delete APSV3_JBLINES where RTRIM(JOB) = '{0}' and RTRIM(SFX) = '{1}'",V.Local.sJob.Trim,V.Local.sSuff.Trim,V.Local.sSQL)
+			F.ODBC.Connection!conts.Execute(V.Local.sSQL)
+			
+			F.Intrinsic.String.Build("Delete APSV3_UBDETAIL where RTRIM(JOB) = '{0}' and RTRIM(SFX) = '{1}'",V.Local.sJob.Trim,V.Local.sSuff.Trim,V.Local.sSQL)
+			F.ODBC.Connection!conts.Execute(V.Local.sSQL)
+
+	F.Intrinsic.Control.Next(V.Local.iCNT2)
+	
+	F.Data.DataTable.Close("dtJobs")
+	
+	F.Intrinsic.String.Build("Select distinct RTRIM(ID) as ID from FORECAST_SUMMARY where RTRIM(CUSTOMER) = '{0}'",V.Local.sCust.Trim,V.Local.sSQL)
+	F.Intrinsic.Control.If(V.DataTable.dtIDs.Exists)
+		F.Data.DataTable.Close("dtIDs")
+	F.Intrinsic.Control.EndIf
+	'Delete FORECAST_DETAIL table by each ID
+	F.Data.DataTable.CreateFromSQL("dtIDs","conts",V.Local.sSQL)
+	
+	F.Intrinsic.Control.For(V.Local.iCNT2,0,V.DataTable.dtIDs.RowCount--,1)
+		V.Local.sID.Set(V.DataTable.dtIDs(V.Local.iCNT2).ID!FieldValTrim)
+		F.Intrinsic.String.Build("Delete FORECAST_DETAIL where RTRIM(ID) = '{0}'",V.Local.sID.Trim,V.Local.sSQL)
+		F.ODBC.Connection!conts.Execute(V.Local.sSQL)
+	F.Intrinsic.Control.Next(V.Local.iCNT2)
+	
+	F.Data.DataTable.Close("dtIDs")
+	
+	'Delete remaining FORECAST tables by customer
+	F.Intrinsic.String.Build("Delete FORECAST_SUMMARY where RTRIM(CUSTOMER) = '{0}'",V.Local.sCust.Trim,V.Local.sSQL)
+	F.ODBC.Connection!conts.Execute(V.Local.sSQL)
+	
+	F.Intrinsic.String.Build("Delete FORECAST_REQ where RTRIM(FO_CUSTOMER) = '{0}' ",V.Local.sCust.Trim,V.Local.sSQL)
+	F.ODBC.Connection!conts.Execute(V.Local.sSQL)
+	
+	F.Intrinsic.String.Build("Delete FORECAST_HEADER where RTRIM(CUSTOMER) = '{0}' ",V.Local.sCust.Trim,V.Local.sSQL)
+	F.ODBC.Connection!conts.Execute(V.Local.sSQL)
+
+F.Intrinsic.Control.Next(V.Local.iCNT)
+
+F.ODBC.Connection!conts.Close
+
+F.Intrinsic.Control.CallSub(Main)
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(Error,"SubRoutine",V.Ambient.CurrentSubroutine,"eNumber",V.Ambient.ErrorNumber,"eDescription",V.Ambient.ErrorDescription)
+F.Intrinsic.Control.EndTry
+Program.Sub.TheGreatPurge.End
+
+Program.Sub.SetIcon.Start
+F.Intrinsic.Control.Try
+V.Local.sForm.Declare
+V.Local.bExists.Declare
+V.Local.sIcon.Declare
+V.Local.iCounter.Declare
+
+F.Intrinsic.String.Build("{0}\ART\gss2.ico",V.Caller.GlobalDir,v.Local.sIcon)
+F.Intrinsic.File.Exists(V.Local.sIcon, V.Local.bExists)
+F.Intrinsic.Control.If(V.Local.bExists.Not)
+    F.Intrinsic.String.Build("{0}\GAB\GAS\gss2.ico",V.Caller.PluginsDir,v.Local.sIcon)
+    F.Intrinsic.File.Exists(V.Local.sIcon, V.Local.bExists)
+    F.Intrinsic.Control.If(V.Local.bExists.Not)
+        F.Intrinsic.Control.ExitSub
+    F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.UI.GetFormList(V.Local.sForm)
+F.Intrinsic.String.Split(V.Local.sForm, "*!*", V.Local.sForm)
+
+F.Intrinsic.Control.For(V.Local.iCounter, 0, V.Local.sForm.UBound, 1)
+    Gui.[V.Local.sForm(V.Local.iCounter)]..Icon(V.Local.sIcon)
+F.Intrinsic.Control.Next(V.Local.iCounter)
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(Error,"SubRoutine",V.Ambient.CurrentSubroutine,"eNumber",V.Ambient.ErrorNumber,"eDescription",V.Ambient.ErrorDescription)
+F.Intrinsic.Control.EndTry
+Program.Sub.SetIcon.End
+
+Program.Sub.FmPurge_UnLoad.Start
+F.Intrinsic.Control.End
+Program.Sub.FmPurge_UnLoad.End
+
+Program.Sub.Error.Start
+V.Local.sError.Declare
+V.Local.iRet.Declare
+V.Local.sSep.Declare
+
+F.Intrinsic.String.Build("-------------------------------------------------------------------------------------",,V.Local.sSep)
+F.Intrinsic.String.Build("({5}-{6}){0}{7}{0}Project: {4}{0}{7}{0}Sub: {1}{0}Error: {2}, {3}", V.Ambient.NewLine, V.Args.SubRoutine, V.Args.eNumber, V.Args.eDescription,V.Caller.ScriptFile,V.Ambient.Date, V.Ambient.Time,V.Local.sSep,V.Local.sError)
+F.Intrinsic.UI.Msgbox(V.Local.sError,"Error",V.Local.iRet)
+Program.Sub.Error.End
